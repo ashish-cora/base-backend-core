@@ -134,8 +134,9 @@ class WebSessionTest extends TestCase
         // Login now challenges instead of authenticating.
         $this->post('/logout')->assertRedirect('/');
         $this->post('/login', ['email' => $user->email, 'password' => 'secret123'])
-            ->assertRedirect(route('two-factor.login'));
+            ->assertRedirect('/two-factor-challenge');
         $this->assertGuest();
+        $this->assertNotNull(session('login.id'));
 
         // Correct challenge code completes authentication.
         $this->post('/two-factor-challenge', ['code' => FakeWebTwoFactorProvider::CODE])
@@ -161,11 +162,11 @@ class WebSessionTest extends TestCase
 
         $this->post('/logout');
         $this->post('/login', ['email' => $user->email, 'password' => 'secret123'])
-            ->assertRedirect(route('two-factor.login'));
+            ->assertRedirect('/two-factor-challenge');
 
         // Bad code redirects back with errors (previously a RouteNotFoundException).
         $this->post('/two-factor-challenge', ['code' => '000000'])
-            ->assertRedirect(route('two-factor.login'))
+            ->assertRedirect('/two-factor-challenge')
             ->assertSessionHasErrors();
         $this->assertGuest();
     }
@@ -188,7 +189,7 @@ class WebSessionTest extends TestCase
             'email' => $user->email,
             'password' => 'new-secret-123',
             'password_confirmation' => 'new-secret-123',
-        ])->assertRedirect(route('login'));
+        ])->assertRedirect('/home');
 
         $this->post('/login', ['email' => $user->email, 'password' => 'new-secret-123']);
         $this->assertAuthenticated();

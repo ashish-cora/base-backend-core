@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use App\Actions\Fortify\RedirectIfTwoFactorAuthenticatableByUrl;
 use Laravel\Fortify\Events\PasswordUpdatedViaController;
 use Laravel\Fortify\Events\RecoveryCodeReplaced;
 use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
@@ -28,7 +28,8 @@ use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
 use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
 use Laravel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided;
 use Laravel\Fortify\Fortify;
-
+use Laravel\Fortify\Contracts\FailedTwoFactorLoginResponse;
+use App\Actions\Fortify\FailedTwoFactorLoginResponseByUrl;
 class FortifyServiceProvider extends ServiceProvider
 {
     /**
@@ -48,7 +49,12 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
-        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
+        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatableByUrl::class);
+
+        $this->app->singleton(
+            FailedTwoFactorLoginResponse::class,
+            FailedTwoFactorLoginResponseByUrl::class
+        );
 
         // Credential validation per PRD §15.1: normalized email, account state,
         // no credential disclosure. Soft-deleted users are excluded by global scope.
