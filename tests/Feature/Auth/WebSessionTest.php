@@ -77,12 +77,12 @@ class WebSessionTest extends TestCase
         $this->assertAuthenticated();
     }
 
-    public function test_home_redirects_guests_to_login_and_users_to_welcome(): void
+    public function test_home_redirects_guests_to_login_and_renders_logout_for_users(): void
     {
         $this->get('/home')->assertRedirect('/login');
 
         $user = User::factory()->create();
-        $this->actingAs($user)->get('/home')->assertRedirect('/');
+        $this->actingAs($user)->get('/home')->assertOk()->assertSee('Log out', false);
     }
 
     public function test_profile_information_update_over_web(): void
