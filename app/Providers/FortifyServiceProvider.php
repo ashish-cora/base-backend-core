@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use App\Actions\Fortify\RedirectIfTwoFactorAuthenticatableByUrl;
+use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 use Laravel\Fortify\Events\PasswordUpdatedViaController;
 use Laravel\Fortify\Events\RecoveryCodeReplaced;
 use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
@@ -28,8 +28,6 @@ use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
 use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
 use Laravel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided;
 use Laravel\Fortify\Fortify;
-use Laravel\Fortify\Contracts\FailedTwoFactorLoginResponse;
-use App\Actions\Fortify\FailedTwoFactorLoginResponseByUrl;
 class FortifyServiceProvider extends ServiceProvider
 {
     /**
@@ -49,12 +47,15 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
-        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatableByUrl::class);
+        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
 
-        $this->app->singleton(
-            FailedTwoFactorLoginResponse::class,
-            FailedTwoFactorLoginResponseByUrl::class
-        );
+        // Starter-kit stubs: children replace resources/views/auth/* with their own screens.
+        Fortify::loginView(fn () => view('auth.login'));
+        Fortify::twoFactorChallengeView(fn () => view('auth.two-factor-challenge'));
+        Fortify::requestPasswordResetLinkView(fn () => view('auth.forgot-password'));
+        Fortify::resetPasswordView(fn ($request) => view('auth.reset-password', ['token' => $request->route('token')]));
+        Fortify::verifyEmailView(fn () => view('auth.verify-email'));
+        Fortify::confirmPasswordView(fn () => view('auth.confirm-password'));
 
         // Credential validation per PRD §15.1: normalized email, account state,
         // no credential disclosure. Soft-deleted users are excluded by global scope.

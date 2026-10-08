@@ -131,12 +131,12 @@ return [
     |
     */
 
-    // Web-only core: Fortify session routes serve browser flows.
-    // views=true so all named routes (login, 2FA challenge, password
-    // reset/verify forms) resolve for redirects. Blade screens are not
-    // built yet — GET form pages wait on views; all POST/session logic
-    // is complete. Token APIs live in the dedicated API repository.
-    'views' => false,
+    // Starter-kit base (copy-paste): views=true so all named routes
+    // (login, 2FA challenge, password reset/verify forms) exist.
+    // Base ships minimal stub Blade under resources/views/auth/ marked
+    // CHILD: override — children replace with their own unique screens.
+    // Token APIs live in the dedicated API repository.
+    'views' => true,
 
     /*
     |--------------------------------------------------------------------------
