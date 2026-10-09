@@ -7,3 +7,4 @@
     <label><input type="checkbox" name="remember" value="1"> Remember me</label>
     <button type="submit">Log in</button>
 </form>
+<p><a href="{{ route('password.request') }}">Forgot password?</a></p>

@@ -209,6 +209,96 @@ class WebSessionTest extends TestCase
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
     }
 
+    public function test_password_page_requires_login_and_renders_form(): void
+    {
+        $this->get(route('profile.password'))->assertRedirect(route('login'));
+
+        $user = User::factory()->create();
+        $this->actingAs($user)->get(route('profile.password'))
+            ->assertOk()
+            ->assertSee('current_password', false)
+            ->assertSee(route('user-password.update'), false);
+    }
+
+    public function test_password_page_shows_validation_errors(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('old-secret')]);
+
+        $this->actingAs($user)->put('/user/password', [
+            'current_password' => 'wrong',
+            'password' => 'brand-new-secret',
+            'password_confirmation' => 'brand-new-secret',
+        ])->assertSessionHasErrors('current_password', null, 'updatePassword');
+
+        $this->actingAs($user)->get(route('profile.password'))->assertOk();
+    }
+
+    public function test_two_factor_page_requires_login_and_toggles(): void
+    {
+        $this->get(route('profile.two-factor'))->assertRedirect(route('login'));
+
+        $this->useFakeTwoFactor();
+        $user = User::factory()->create(['password' => Hash::make('secret123')]);
+
+        // State A (disabled): Enable only, never Disable/Cancel.
+        // NOTE: enable (POST) and disable (DELETE) share the same URL, so
+        // assert on button labels — not the URL — for exclusivity.
+        $this->actingAs($user)->get(route('profile.two-factor'))
+            ->assertOk()
+            ->assertSee('Enable two-factor', false)
+            ->assertSee(route('two-factor.enable'), false)
+            ->assertDontSee('Disable two-factor', false)
+            ->assertDontSee('Cancel setup', false);
+
+        // Without recent password confirmation, Fortify redirects to confirm page.
+        $this->actingAs($user->fresh())->post('/user/two-factor-authentication')
+            ->assertRedirect(route('password.confirm'));
+
+        // State B (confirming): QR + Confirm + Cancel, never Enable.
+        $this->confirmPasswordFor($user);
+        $this->actingAs($user)->post('/user/two-factor-authentication')->assertRedirect();
+        $this->actingAs($user->refresh())->get(route('profile.two-factor'))
+            ->assertOk()
+            ->assertSee('<svg', false)
+            ->assertSee(route('two-factor.confirm'), false)
+            ->assertSee('Cancel setup', false)
+            ->assertDontSee('Enable two-factor', false);
+
+        // State C (enabled): Disable only, never Enable/Confirm.
+        $this->actingAs($user->refresh())->post('/user/confirmed-two-factor-authentication', [
+            'code' => FakeWebTwoFactorProvider::CODE,
+        ])->assertRedirect();
+        $this->actingAs($user->refresh())->get(route('profile.two-factor'))
+            ->assertOk()
+            ->assertSee('Two-factor is enabled.', false)
+            ->assertSee('Disable two-factor', false)
+            ->assertDontSee('Enable two-factor', false)
+            ->assertDontSee(route('two-factor.confirm'), false);
+    }
+
+    public function test_reset_views_are_public_but_profile_pages_are_not(): void
+    {
+        // Public: forgot + reset views render without login.
+        $this->get(route('password.request'))->assertOk();
+        $this->get(route('password.reset', ['token' => 'dummy-token']))
+            ->assertOk()
+            ->assertSee('token', false)
+            ->assertSee('email', false);
+
+        // Auth-gated: guests never get 200 on profile pages.
+        $this->get(route('profile.password'))->assertRedirect(route('login'));
+        $this->get(route('profile.two-factor'))->assertRedirect(route('login'));
+    }
+
+    public function test_home_links_to_new_pages(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user)->get(route('home'))
+            ->assertOk()
+            ->assertSee(route('profile.password'), false)
+            ->assertSee(route('profile.two-factor'), false);
+    }
+
     protected ?string $resetToken = null;
 }
 
