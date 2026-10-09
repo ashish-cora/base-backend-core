@@ -241,22 +241,25 @@ class WebSessionTest extends TestCase
         $user = User::factory()->create(['password' => Hash::make('secret123')]);
 
         // State A (disabled): Enable only, never Disable/Cancel.
-        // NOTE: enable (POST) and disable (DELETE) share the same URL, so
-        // assert on button labels — not the URL — for exclusivity.
+        // Our wrapper posts to profile.two-factor.store (one-go with password),
+        // not Fortify's two-factor.enable route.
         $this->actingAs($user)->get(route('profile.two-factor'))
             ->assertOk()
             ->assertSee('Enable two-factor', false)
-            ->assertSee(route('two-factor.enable'), false)
+            ->assertSee(route('profile.two-factor.store'), false)
             ->assertDontSee('Disable two-factor', false)
             ->assertDontSee('Cancel setup', false);
 
-        // Without recent password confirmation, Fortify redirects to confirm page.
+        // Direct Fortify route still redirects without recent password confirmation.
         $this->actingAs($user->fresh())->post('/user/two-factor-authentication')
             ->assertRedirect(route('password.confirm'));
 
         // State B (confirming): QR + Confirm + Cancel, never Enable.
-        $this->confirmPasswordFor($user);
-        $this->actingAs($user)->post('/user/two-factor-authentication')->assertRedirect();
+        // One-go: password + enable complete together, no confirm-page hop.
+        $this->actingAs($user)->post(route('profile.two-factor.store'), [
+            'password' => 'secret123',
+        ])->assertRedirect();
+        $this->assertNotNull($user->fresh()->two_factor_secret);
         $this->actingAs($user->refresh())->get(route('profile.two-factor'))
             ->assertOk()
             ->assertSee('<svg', false)
@@ -274,6 +277,34 @@ class WebSessionTest extends TestCase
             ->assertSee('Disable two-factor', false)
             ->assertDontSee('Enable two-factor', false)
             ->assertDontSee(route('two-factor.confirm'), false);
+    }
+
+    public function test_two_factor_enable_and_disable_complete_in_one_go_with_password(): void
+    {
+        $this->useFakeTwoFactor();
+        $user = User::factory()->create(['password' => Hash::make('secret123')]);
+
+        // Wrong password: validation error, secret stays null.
+        $this->actingAs($user)->post(route('profile.two-factor.store'), [
+            'password' => 'wrong',
+        ])->assertSessionHasErrors('password');
+        $this->assertNull($user->fresh()->two_factor_secret);
+
+        // Correct password: enabled in the same POST, session confirmed for QR/confirm routes.
+        $this->actingAs($user)->post(route('profile.two-factor.store'), [
+            'password' => 'secret123',
+        ])->assertRedirect();
+        $this->assertNotNull($user->fresh()->two_factor_secret);
+
+        // Confirm then disable in one go as well.
+        $this->actingAs($user->refresh())->post('/user/confirmed-two-factor-authentication', [
+            'code' => FakeWebTwoFactorProvider::CODE,
+        ])->assertRedirect();
+
+        $this->actingAs($user->refresh())->delete(route('profile.two-factor.destroy'), [
+            'password' => 'secret123',
+        ])->assertRedirect();
+        $this->assertNull($user->fresh()->two_factor_secret);
     }
 
     public function test_reset_views_are_public_but_profile_pages_are_not(): void
